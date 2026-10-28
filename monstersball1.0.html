@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MONSTERBALL — Haunted Archery</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#100c21;color:#fff4db;font:16px system-ui;text-align:center}
+main{max-width:650px;margin:auto;padding:12px}h1{margin:5px;color:#ffbd51;text-shadow:2px 3px #8a2c82}
+.frame{font-size:24px;letter-spacing:5px;line-height:1.7}
+canvas{display:block;width:100%;height:auto;background:#21143c;border:4px solid #f6aa3a;border-radius:12px;touch-action:none}
+.controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:12px}
+button,select{border:2px solid #fff2d0;border-radius:10px;background:#f9ad41;color:#20112b;padding:12px;font-size:16px;font-weight:700;min-height:46px}
+#score{font-size:25px;font-weight:800;color:#ffd77a;margin:7px}#status{min-height:25px;color:#f2d1ff}
+small{display:block;margin:8px;color:#e4c8ed;line-height:1.5}
+</style></head><body><main>
+<div class="frame">🦇 👻 🕸️ 🎃 🧛 🐺 🧟</div>
+<h1>💀 MONSTERBALL 💀</h1><div>HAUNTED ARCHERY • FIRST TO 13</div>
+<div class="controls"><label>Archer <select id="archer"><option>🧙‍♀️</option><option>🧛</option><option>🧟</option><option>👻</option><option>🐺</option></select></label></div>
+<div id="score">0 / 13</div><canvas id="board" width="400" height="360" aria-label="Monster archery arena"></canvas>
+<div id="status" role="status">Press PLAY to begin!</div>
+<div class="controls"><button id="play">▶ PLAY / RESTART</button><button id="fire">🏹 SHOOT</button><button id="sound">🔊 MUSIC ON</button></div>
+<small>Drag BACKWARDS from the bow at the bottom left and release to shoot. Or tap SHOOT to fire toward the nearest monster. Hit 13 monster balls to win!</small>
+<div class="frame">🪦 🕯️ 🌕 🏚️ 🍬 🎃 👻</div></main>
+<script>
+(()=>{'use strict';
+const c=document.querySelector('#board'),g=c.getContext('2d'),score=document.querySelector('#score'),status=document.querySelector('#status'),archer=document.querySelector('#archer');
+const W=400,H=360,origin={x:54,y:296};let targets=[],arrows=[],particles=[],points=0,playing=false,drag=null,aim={x:0,y:0},last=0,raf=0,sound=true,audio=null,beat=0,musicClock=0;
+const faces=['🧛','🧟','👻','🐺','🧙‍♀️','👹','👽'];
+function tone(f,d=.08){if(!sound)return;try{audio??=new(window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const o=audio.createOscillator(),v=audio.createGain();o.type='square';o.frequency.value=f;v.gain.setValueAtTime(.026,audio.currentTime);v.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(v);v.connect(audio.destination);o.start();o.stop(audio.currentTime+d)}catch(e){}}
+function makeTarget(i){return{x:180+Math.random()*180,y:62+Math.random()*170,r:23,face:faces[Math.floor(Math.random()*faces.length)],vx:(Math.random()<.5?-1:1)*(0.7+Math.random()*.9),vy:(Math.random()<.5?-1:1)*(.3+Math.random()*.7),phase:Math.random()*6.28}}
+function reset(){points=0;playing=true;targets=Array.from({length:4},(_,i)=>makeTarget(i));arrows=[];particles=[];score.textContent='0 / 13';status.textContent='Aim, draw and release!';tone(440,.12);if(!raf)raf=requestAnimationFrame(loop)}
+function shoot(vx,vy){if(!playing)return;arrows.push({x:origin.x,y:origin.y,vx,vy,age:0});tone(360,.07)}
+function autoShoot(){if(!playing){reset();return}const t=targets.reduce((a,b)=>Math.hypot(a.x-origin.x,a.y-origin.y)<Math.hypot(b.x-origin.x,b.y-origin.y)?a:b);const dx=t.x-origin.x,dy=t.y-origin.y;const frames=Math.max(8,dx/8.2);shoot(8.2,(dy-.075*frames*frames)/frames)}
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
+c.addEventListener('pointerdown',e=>{if(!playing)return;drag=pos(e);aim={x:0,y:0};c.setPointerCapture(e.pointerId)});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);aim={x:Math.max(0,Math.min(110,(drag.x-p.x))),y:Math.max(-110,Math.min(110,drag.y-p.y))}});
+c.addEventListener('pointerup',e=>{if(!drag)return;const p=pos(e),dx=drag.x-p.x,dy=drag.y-p.y;drag=null;if(Math.hypot(dx,dy)<8){autoShoot();return}shoot(Math.max(3,Math.min(12,dx*.13)),Math.max(-12,Math.min(5,dy*.13)));aim={x:0,y:0}});
+c.addEventListener('pointercancel',()=>{drag=null;aim={x:0,y:0}});
+document.querySelector('#play').addEventListener('click',reset);document.querySelector('#fire').addEventListener('click',autoShoot);
+document.querySelector('#sound').addEventListener('click',e=>{sound=!sound;e.currentTarget.textContent=sound?'🔊 MUSIC ON':'🔇 MUSIC OFF';if(sound)tone(440)});
+function emoji(s,x,y,size){g.font=size+'px serif';g.textAlign='center';g.textBaseline='middle';g.fillText(s,x,y)}
+function step(dt){if(!playing)return;const speed=1+points*.065;for(const t of targets){t.x+=t.vx*dt*speed;t.y+=t.vy*dt*speed;if(t.x<155||t.x>375)t.vx*=-1;if(t.y<50||t.y>245)t.vy*=-1;t.phase+=dt*.06}
+for(const a of arrows){a.x+=a.vx*dt;a.y+=a.vy*dt;a.vy+=.15*dt;a.age+=dt;for(let i=0;i<targets.length;i++){const t=targets[i];if(Math.hypot(a.x-t.x,a.y-t.y)<t.r+5){points++;score.textContent=points+' / 13';status.textContent=points>=13?'🏆 MONSTERBALL CHAMPION!':'🎯 HIT! '+(13-points)+' to go!';tone(660,.09);setTimeout(()=>tone(880,.1),100);for(let k=0;k<9;k++)particles.push({x:t.x,y:t.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:22});targets[i]=makeTarget(i);a.age=999;if(points>=13){playing=false;status.textContent='🏆 YOU WIN! 13 MONSTERS HIT!';tone(1046,.4)}break}}}
+arrows=arrows.filter(a=>a.age<100&&a.x<420&&a.y<370&&a.y>-20);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}particles=particles.filter(p=>p.life>0);
+musicClock+=dt;if(musicClock>21){musicClock=0;const melody=[196,247,294,247,220,262,330,247];tone(melody[beat++%melody.length],.09)}}
+function draw(){g.fillStyle='#241537';g.fillRect(0,0,W,H);emoji('🌕',200,48,44);emoji('🏚️',190,195,62);emoji('🕸️',370,32,25);emoji('🦇',90,45,27);emoji('🪦',125,270,32);emoji('🕯️',355,274,25);
+g.fillStyle='#43304c';g.fillRect(0,316,W,44);g.fillStyle='#c18b57';g.fillRect(0,312,W,5);
+for(const t of targets){g.fillStyle='#613b78';g.beginPath();g.arc(t.x,t.y,t.r+4,0,Math.PI*2);g.fill();g.strokeStyle='#ffc86a';g.lineWidth=2;g.stroke();emoji(t.face,t.x,t.y,32)}
+emoji(archer.value,origin.x,origin.y-22,39);emoji('🏹',origin.x+9,origin.y-3,34);
+for(const a of arrows){g.save();g.translate(a.x,a.y);g.rotate(Math.atan2(a.vy,a.vx));g.strokeStyle='#ffdb91';g.lineWidth=3;g.beginPath();g.moveTo(-19,0);g.lineTo(10,0);g.stroke();g.fillStyle='#fff';g.beginPath();g.moveTo(12,0);g.lineTo(4,-5);g.lineTo(4,5);g.fill();g.restore()}
+for(const p of particles)emoji('🍬',p.x,p.y,13);
+if(drag){g.strokeStyle='#b5f6c3';g.lineWidth=3;g.setLineDash([6,6]);g.beginPath();g.moveTo(origin.x,origin.y);g.lineTo(origin.x+aim.x*1.5,origin.y+aim.y*1.5);g.stroke();g.setLineDash([])}
+if(!playing&&points===13){g.fillStyle='#130b22d9';g.fillRect(45,116,310,85);emoji('🏆',200,139,36);g.fillStyle='#fff';g.textAlign='center';g.font='bold 19px system-ui';g.fillText('13 HITS — YOU WIN!',200,182)}}
+function loop(t){const dt=Math.min(2,(t-last)/16.67||1);last=t;step(dt);draw();raf=requestAnimationFrame(loop)}
+draw();
+})();
+</script></body></html>
