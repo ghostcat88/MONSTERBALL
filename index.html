@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>MONSTERBALL 🎃</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#10091e;color:white;
+ font-family:monospace;text-align:center;
+}
+h1{color:#ffad31;text-shadow:3px 3px #8d246d;margin:12px}
+p{font-size:13px}
+button,select{
+ background:#ffad31;color:#180d25;
+ border:2px solid white;border-radius:9px;
+ padding:12px;font-size:16px;font-weight:bold;
+ margin:5px;touch-action:manipulation;
+}
+#wrap{max-width:650px;margin:auto;padding:8px}
+#decor{font-size:25px;line-height:1.8}
+#game{
+ width:100%;height:auto;display:block;
+ background:#211239;border:4px solid #ffad31;
+ border-radius:12px;touch-action:none;
+}
+#score{font-size:23px;color:#ffcf65;margin:10px}
+#message{min-height:30px;color:#ffca80}
+#instructions{font-size:13px;color:#e7c6fa}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div id="decor">🦇 👻 🕸️ 🎃 🧛 🐺 🧟 🧙‍♀️</div>
+<h1>💀 MONSTERBALL 💀</h1>
+<p>RETRO MONSTER BASKETBALL</p>
+<label>YOUR MONSTER:
+<select id="monster">
+<option>🧛</option>
+<option>🧟</option>
+<option>🧙‍♀️</option>
+<option>👻</option>
+<option>🐺</option>
+<option>💀</option>
+<option>👽</option>
+</select>
+</label>
+<div id="score">YOU 0 — 0 MONSTER</div>
+<canvas id="game" width="360" height="300"></canvas>
+<div id="message">Choose your monster and press PLAY!</div>
+<button id="start">▶ PLAY / RESTART</button>
+<button id="shoot">💀 SHOOT!</button>
+<button id="music">🔊 MUSIC ON</button>
+<div id="instructions">
+Drag backwards from the skull to aim, then release!<br>
+Or tap SHOOT for an automatic throw.<br>
+First to 10 wins! 🎃
+</div>
+<div id="decor">🕯️ 🪦 🦇 🌕 🏚️ 🍬 👻 🎃 🖤</div>
+</div>
+<script>
+(()=>{
+"use strict";
+const c=document.getElementById("game");
+const x=c.getContext("2d");
+const score=document.getElementById("score");
+const msg=document.getElementById("message");
+const player=document.getElementById("monster");
+let running=false,over=false,aim=false;
+let points=0,enemyPoints=0;
+let ball={x:65,y:225,vx:0,vy:0,r:13};
+let flying=false,turn="you",wait=0;
+let target="🧟",sound=true,audio=null;
+let last=0,raf=0,musicTimer=0,note=0;
+const monsters=["🧟","🧛","🐺","👻","👹","👽"];
+const rnd=n=>Math.floor(Math.random()*n);
+function audioOn(){
+ try{
+ audio=audio||new(window.AudioContext||window.webkitAudioContext)();
+ if(audio.state==="suspended")audio.resume();
+ }catch(e){sound=false}
+}
+function beep(freq=440,dur=.12){
+ if(!sound||!audio)return;
+ try{
+ const o=audio.createOscillator(),g=audio.createGain();
+ o.type="square";o.frequency.value=freq;
+ g.gain.setValueAtTime(.035,audio.currentTime);
+ g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);
+ o.connect(g);g.connect(audio.destination);
+ o.start();o.stop(audio.currentTime+dur);
+ }catch(e){}
+}
+function music(){
+ if(!running||!sound)return;
+ const notes=[196,247,294,247,220,262,330,262,
+ 196,247,392,330,294,247,220,165];
+ beep(notes[note++%notes.length],.11);
+}
+function resetBall(){
+ flying=false;aim=false;
+ ball.x=turn==="you"?65:295;
+ ball.y=225;ball.vx=ball.vy=0;
+}
+function updateScore(){
+ score.textContent=`YOU ${points} — ${enemyPoints} MONSTER`;
+}
+function start(){
+ audioOn();
+ points=0;enemyPoints=0;turn="you";
+ target=monsters[rnd(monsters.length)];
+ running=true;over=false;wait=0;note=0;
+ resetBall();updateScore();
+ msg.textContent="Your turn! Aim at the monster's mouth!";
+ if(!raf)raf=requestAnimationFrame(loop);
+}
+function launch(vx,vy){
+ if(!running||over||flying||turn!=="you")return;
+ audioOn();ball.vx=vx;ball.vy=vy;
+ flying=true;aim=false;beep(490,.09);
+ msg.textContent="FLY, LITTLE SKULL! 💀";
+}
+function shoot(){
+ if(!running){start();return}
+ if(turn!=="you"||flying||over)return;
+ launch(5.8,-7.5);
+}
+function aiShoot(){
+ if(!running||over)return;
+ turn="monster";resetBall();
+ ball.vx=-5.7+(Math.random()-.5)*1.5;
+ ball.vy=-7.6+(Math.random()-.5)*2;
+ flying=true;beep(280,.12);
+ msg.textContent="MONSTER SHOOTS! 👹";
+}
+function finishShot(hit){
+ flying=false;
+ if(hit){
+ if(turn==="you")points++;
+ else enemyPoints++;
+ beep(660,.12);
+ setTimeout(()=>beep(880,.2),110);
+ msg.textContent="CHOMP! BASKET! 🎃";
+ }else{
+ beep(160,.15);
+ msg.textContent="MISSED! 💀";
+ }
+ updateScore();
+ if(points>=10||enemyPoints>=10){
+ over=true;running=false;
+ msg.textContent=points>=10?
+ "🏆 YOU WIN! MONSTERBALL CHAMPION!":
+ "👹 MONSTER WINS! TRY AGAIN!";
+ return;
+ }
+ turn=turn==="you"?"monster":"you";
+ wait=70;
+ resetBall();
+}
+function emoji(s,px,py,size=32){
+ x.font=size+"px serif";
+ x.textAlign="center";
+ x.textBaseline="middle";
+ x.fillText(s,px,py);
+}
+function draw(){
+ x.clearRect(0,0,360,300);
+ x.fillStyle="#211239";x.fillRect(0,0,360,300);
+ emoji("🌕",180,49,39);
+ emoji("🦇",90,40,24);
+ emoji("🕸️",310,40,26);
+ emoji("🏚️",180,145,45);
+ emoji("🪦",35,183,25);
+ emoji("🕯️",325,183,22);
+ x.fillStyle="#48305b";x.fillRect(0,246,360,54);
+ x.strokeStyle="#ffb647";x.lineWidth=3;
+ x.beginPath();x.moveTo(0,246);x.lineTo(360,246);x.stroke();
+ x.setLineDash([5,7]);x.beginPath();
+ x.moveTo(180,246);x.lineTo(180,295);x.stroke();
+ x.setLineDash([]);
+ emoji(player.value,55,215,43);
+ emoji(target,305,208,51);
+ emoji("👄",305,232,31);
+ emoji("👄",55,232,28);
+ emoji("💀",ball.x,ball.y,29);
+ x.fillStyle="#ffcf77";x.font="12px monospace";
+ x.fillText("YOU",55,273);
+ x.fillText("MONSTER",305,273);
+ if(aim){
+ x.strokeStyle="#a8ffb0";x.lineWidth=2;
+ x.setLineDash([5,5]);x.beginPath();
+ x.moveTo(ball.x,ball.y);
+ x.lineTo(ball.x+previewX,ball.y+previewY);
+ x.stroke();x.setLineDash([]);
+ }
+ if(over){
+ x.fillStyle="#10091edc";x.fillRect(0,75,360,100);
+ emoji(points>=10?"🏆":"👹",180,108,42);
+ x.fillStyle="#fff";x.font="bold 22px monospace";
+ x.fillText(points>=10?"YOU WIN!":"GAME OVER",180,155);
+ }
+}
+let previewX=0,previewY=0,down=null;
+function pointer(e){
+ const r=c.getBoundingClientRect();
+ return {x:(e.clientX-r.left)*360/r.width,
+ y:(e.clientY-r.top)*300/r.height};
+}
+c.addEventListener("pointerdown",e=>{
+ if(!running||turn!=="you"||flying)return;
+ down=pointer(e);aim=true;
+ previewX=0;previewY=0;
+ c.setPointerCapture(e.pointerId);
+});
+c.addEventListener("pointermove",e=>{
+ if(!aim||!down)return;
+ const p=pointer(e);
+ previewX=Math.max(-100,Math.min(130,(down.x-p.x)*2));
+ previewY=Math.max(-120,Math.min(100,(down.y-p.y)*2));
+});
+c.addEventListener("pointerup",e=>{
+ if(!aim||!down)return;
+ const p=pointer(e);
+ const dx=down.x-p.x,dy=down.y-p.y;
+ down=null;aim=false;
+ if(Math.hypot(dx,dy)<8){shoot();return}
+ launch(Math.max(2,Math.min(10,dx*.11)),
+ Math.max(-12,Math.min(-2,dy*.11)));
+});
+c.addEventListener("pointercancel",()=>{
+ aim=false;down=null;
+});
+function step(dt){
+ if(!running)return;
+ if(wait>0){
+ wait-=dt;
+ if(wait<=0){
+ if(turn==="monster")aiShoot();
+ else{resetBall();msg.textContent="YOUR TURN! 💀"}
+ }
+ return;
+ }
+ if(!flying)return;
+ ball.x+=ball.vx*dt;
+ ball.y+=ball.vy*dt;
+ ball.vy+=.22*dt;
+ const goal=turn==="you"?305:55;
+ if(Math.abs(ball.x-goal)<20 &&
+ ball.y>194 && ball.y<245 &&
+ ball.vy>0){
+ finishShot(true);return;
+ }
+ if(ball.y>=238||ball.x>370||ball.x< -10||
+ ball.y>320){
+ finishShot(false);
+ }
+}
+function loop(t){
+ const dt=Math.min(2,(t-last)/16.67||1);
+ last=t;step(dt);draw();
+ raf=requestAnimationFrame(loop);
+}
+document.getElementById("start").addEventListener("click",start);
+document.getElementById("shoot").addEventListener("click",shoot);
+document.getElementById("music").addEventListener("click",()=>{
+ sound=!sound;
+ document.getElementById("music").textContent=
+ sound?"🔊 MUSIC ON":"🔇 MUSIC OFF";
+ if(sound)audioOn();
+});
+player.addEventListener("change",()=>{draw()});
+musicTimer=setInterval(music,260);
+draw();
+})();
+</script>
+</body>
+</html>
